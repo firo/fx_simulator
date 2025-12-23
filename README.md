@@ -7,7 +7,7 @@ Simulatore avanzato per analizzare la convenienza del cambio valuta da USD a EUR
 - **Analisi Spread**: Calcolo della commissione implicita (pips) applicata dalla banca rispetto al tasso interbancario.
 - **Record Storico**: Individuazione automatica del miglior tasso degli ultimi 12 mesi con calcolo del guadagno mancato.
 - **Posizionamento Dinamico**: Calcolo del percentile di convenienza (0-100%) per capire se il Dollaro è forte o debole rispetto alla media storica annuale.
-- **Commento Intelligente**: Suggerimento operativo generato dinamicamente in base alla posizione del prezzo nel range di volatilità.
+- **Commento**: Suggerimento operativo generato dinamicamente in base alla posizione del prezzo nel range di volatilità.
 
 ## 🛠 Setup e Installazione
 
