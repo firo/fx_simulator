@@ -8,7 +8,7 @@ from datetime import datetime
 # =================================================================
 print("\n--- SIMULATORE CAMBIO EUR/USD (FINECO) ---")
 try:
-    user_input = input("Inserisci l'importo in USD (es. 125 per 125k$): ")
+    user_input = input("Inserisci l'importo in USD (es. 100 per 100k$): ")
     val_raw = float(user_input.replace(',', '.'))
     USD_AMOUNT = val_raw * 1000 if val_raw < 1000 else val_raw
 except ValueError:
