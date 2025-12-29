@@ -1,7 +1,25 @@
 # FX Simulator - USD to EUR (Fineco Logic)
 
 Simulatore avanzato per analizzare la convenienza del cambio valuta da USD a EUR. Il sistema confronta i tassi in tempo reale di Yahoo Finance con lo spread reale applicato dal servizio Multicurrency di Fineco.
+Questo è un esempio del risultato sulla base di 10k
 
+```
+--- SIMULATORE CAMBIO EUR/USD (FINECO) ---
+Inserisci l'importo in USD (es. 100 per 100k$): 10
+
+============================================================
+REPORT CAMBIO DINAMICO - 29/12/2025 09:21
+============================================================
+Capitale: 10,000.00 USD  |  Ottenuti: 8,462.00 €
+Tasso Fineco (USD/EUR): 0.8462 (Mercato: 1.1780)
+Posizionamento cambio:  94.5% (0%=Migliore, 100%=Peggiore)
+------------------------------------------------------------
+ANALISI: SFAVOREVOLE: L'Euro è molto forte. Se possibile, attendi un ritracciamento.
+------------------------------------------------------------
+Record 12 mesi (13/01/2025): 9,783.39 €
+Differenza dal massimo potenziale: -1,321.39 €
+============================================================
+```
 ## 🚀 Funzionalità
 - **Cambio Immediato**: Calcolo netto basato sul tasso USD/EUR inserito manualmente (formato Fineco).
 - **Analisi Spread**: Calcolo della commissione implicita (pips) applicata dalla banca rispetto al tasso interbancario.
