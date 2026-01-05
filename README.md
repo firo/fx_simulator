@@ -1,24 +1,23 @@
-# Simulatore di Cambio FX Avanzato
+# Sistema di Raccomandazione per Conversione USD → EUR
 
-Questo è un simulatore a riga di comando (CLI) per analizzare la convenienza di un'operazione di cambio valuta, con un focus sul cambio da USD a EUR.
-
-Lo strumento va oltre un semplice calcolo di conversione, fornendo indicatori statistici avanzati e un'analisi contestualizzata per aiutare l'utente a prendere decisioni informate. Utilizza dati storici da Yahoo Finance per valutare se il tasso di cambio odierno è favorevole rispetto all'andamento dell'ultimo anno.
+Questo sistema fornisce raccomandazioni pragmatiche per la conversione di USD in EUR, basandosi su un'analisi multi-fattore di indicatori tecnici. L'obiettivo non è predire il futuro del mercato Forex (notoriamente difficile), ma valutare se il momento attuale è statisticamente favorevole per una conversione rispetto al comportamento storico.
 
 ## ✨ Funzionalità Principali
 
-- **Analisi Multi-fattore**: Il commento dinamico non si basa solo sul prezzo, ma combina tre fattori chiave:
-    1.  **Posizionamento Storico**: Un percentile statistico calcola la convenienza del tasso odierno rispetto a tutti i giorni dell'ultimo anno.
-    2.  **Rischio di Mercato**: La volatilità a 30 giorni (giornaliera e annualizzata) misura il livello di incertezza e rischio.
-    3.  **Trend di Breve Termine**: Il confronto con la media mobile a 50 giorni (SMA50) indica la direzione attuale del mercato.
-- **Metriche Dettagliate**: Calcola e mostra metriche utili come lo spread percentuale pagato all'intermediario, la volatilità annualizzata, e il potenziale guadagno/perdita rispetto ai momenti migliori e peggiori dell'anno.
-- **Gestione Errori Robusta**: Implementa eccezioni personalizzate (`MarketDataError`) e blocchi `try-except` per gestire elegantemente problemi di connessione, dati mancanti o input non validi.
-- **Cache Dati Intelligente**: Utilizza un pattern Singleton con cache temporizzata. I dati di mercato vengono conservati per un'ora, evitando download ripetuti e velocizzando le analisi successive.
-- **Validazione Automatica**: Controlla la validità degli input utente e la qualità dei dati scaricati (es. numero minimo di righe, freschezza dei dati).
-- **Architettura Modulare**: La logica di business è isolata in una libreria riutilizzabile (`fx_lib.py`), separata dall'interfaccia utente (`fx_simulator.py`).
+Il sistema integra diversi indicatori tecnici per generare un **punteggio complessivo (0-100)** e una raccomandazione chiara:
+
+-   **Analisi del Trend (Medie Mobili)**: Valuta la posizione del prezzo corrente rispetto alle SMA 20, 50 e 200 giorni per identificare la direzione del trend di breve, medio e lungo termine.
+-   **Analisi del Momentum (RSI)**: Utilizza l'Indicatore di Forza Relativa (RSI) per determinare se il Dollaro è ipervenduto (buono per chi vende USD) o ipercomprato (sfavorevole).
+-   **Analisi della Volatilità (Bande di Bollinger)**: Posiziona il prezzo corrente all'interno delle Bande di Bollinger, indicando se si trova vicino ai minimi (potenziale acquisto di EUR a buon prezzo) o ai massimi (potenziale vendita di EUR a prezzo alto).
+-   **Contesto Storico (Percentile)**: Calcola la posizione del tasso odierno rispetto a tutti i tassi degli ultimi 12 mesi, fornendo un contesto di convenienza storica.
+-   **Scoring Multi-Indicatore**: Combina i segnali di tutti gli indicatori in un unico score (0-100), dove un punteggio più alto indica un momento più favorevole per convertire USD in EUR.
+-   **Raccomandazione Testuale Dettagliata**: Genera una raccomandazione chiara ("OTTIMO MOMENTO", "BUON MOMENTO", ecc.) con un messaggio esplicativo e dettagli specifici basati sui contributi di ciascun indicatore.
+-   **Gestione Errori Robusta**: Include eccezioni personalizzate (`MarketDataError`) e logging per una maggiore stabilità e trasparenza in caso di problemi (connessione, dati).
+-   **Cache Dati Intelligente**: Scarica e mantiene in cache i dati di mercato per un'ora, riducendo i tempi di attesa per analisi consecutive.
 
 ## 🛠️ Installazione e Utilizzo
 
-Per eseguire il simulatore, sono necessari Python 3 e Git.
+Per eseguire il sistema di raccomandazione, sono necessari Python 3 e Git.
 
 1.  **Clona il Repository**
     ```bash
@@ -41,45 +40,53 @@ Per eseguire il simulatore, sono necessari Python 3 e Git.
     ```bash
     python fx_simulator.py
     ```
-    Lo script ti chiederà di inserire l'importo in USD che desideri convertire.
+    Lo script ti chiederà l'importo in USD e il tasso di cambio Fineco (USD -> EUR).
 
-## 📊 Interpretare l'Output
+## 📊 Interpretare il Report di Raccomandazione
 
-Dopo l'esecuzione, lo script stamperà un report dettagliato:
+Dopo l'esecuzione, il sistema stamperà un report dettagliato con la raccomandazione:
 
 ```
 ======================================================================
-ANALISI CAMBIO USD -> EUR
+RACCOMANDAZIONE CONVERSIONE USD → EUR
 ======================================================================
+
+🟢 OTTIMO MOMENTO (Score: 70/100)
+Tutti gli indicatori tecnici sono favorevoli. È un momento statisticamente vantaggioso per convertire.
 
 💰 CONVERSIONE:
-   112,000.00 USD → 94,774.40 EUR
-   Tasso Fineco: 1.18371 EUR/USD
-   Spread vs mercato: 1.31%
+   10,000.00 USD → 9,550.00 EUR
+   Tasso Fineco: 1 USD = 0.9550 EUR
 
 📊 MERCATO:
-   Tasso attuale: 1.16840 EUR/USD
-   Percentile 12M: 0.4%
-   Volatilità: 0.0025 (3.97% annualizzata)
-   SMA 50 giorni: 1.16370
+   Tasso corrente: 1.05000 EUR/USD
+   Spread Fineco: -0.48%
+   Range 12 mesi: 1.04000 - 1.15000
+   Posizione nel range: 9.1%
 
-📈 CONFRONTO STORICO (ultimi 12 mesi):
-   Miglior tasso: 1.07000 il 2025-01-13
-   Peggior tasso: 1.18130 il 2025-12-15
-   Potenziale guadagno vs miglior momento: -13,776.43 EUR (-12.7%)
+📈 ANALISI TECNICA:
+   ✓ Trend favorevole (prezzo sotto medie mobili)
+   ✓ RSI indica ipervenduto (USD forte)
+   ✓ Prezzo vicino a banda di Bollinger inferiore
+   ✓ Nel 15.0° percentile degli ultimi 12 mesi
 
-💡 SCENARIO: ECCELLENTE. Il Dollaro è ai massimi storici rispetto agli ultimi 12 mesi, un'opportunità potenzialmente d'oro. Il mercato è relativamente stabile. Il trend favorisce l'Euro (sopra media del 0.4%).
+🔍 INDICATORI DETTAGLIATI:
+   • Trend (medie mobili): 40/40 punti
+   • RSI: 25.0 → 30/30 punti
+   • Bollinger: posizione 0.10 → 20/20 punti
+   • Percentile 12M: 15.0% → 10/10 punti
 
-📅 Ultimo aggiornamento dati: 2026-01-05 (0 giorni fa)
+⏰ Analisi aggiornata al: 2026-01-05 12:00:00
 ======================================================================
 ```
 
-- **Spread vs mercato**: Il costo implicito della tua operazione di cambio. Un valore basso è migliore.
-- **Percentile 12M**: **L'indicatore più importante.** Un valore basso (es. < 15%) significa che il tasso di oggi è tra i più favorevoli di tutto l'anno.
-- **Volatilità annualizzata**: Misura il "nervosismo" del mercato. Valori alti (es. > 10%) indicano maggiore incertezza.
-- **SMA 50 giorni**: La media dei prezzi degli ultimi 50 giorni. Se il tasso attuale è sopra questa media, il trend di breve termine favorisce l'Euro; se è sotto, favorisce il Dollaro.
-- **💡 SCENARIO**: Il riassunto intelligente che combina tutti i fattori in un'analisi di facile comprensione.
+-   **Azione e Score**: Indica la raccomandazione complessiva (es. "OTTIMO MOMENTO") e il punteggio da 0 (peggiore) a 100 (migliore).
+-   **Spread Fineco**: La differenza percentuale tra il tasso Fineco e il tasso di mercato corrente.
+-   **Range 12 mesi**: Il range dei tassi (EUR/USD) osservati nell'ultimo anno.
+-   **Posizione nel range**: Dove si colloca il tasso corrente all'interno di questo range (0% = minimo, 100% = massimo).
+-   **Analisi Tecnica Dettagliata**: Mostra un elenco puntato dei segnali specifici che contribuiscono alla raccomandazione finale.
+-   **Indicatori Dettagliati**: Fornisce i valori numerici e i punteggi individuali per ciascun indicatore (Trend, RSI, Bollinger, Percentile).
 
 ---
 
-*Disclaimer: Questo software è sviluppato a scopo didattico e analitico. Non deve essere considerato come consulenza finanziaria.*
+*Disclaimer: Questo software è a scopo puramente analitico e didattico. Non costituisce consulenza finanziaria e non deve essere utilizzato come unica base per decisioni di investimento. I mercati finanziari sono volatili e comportano rischi.*
