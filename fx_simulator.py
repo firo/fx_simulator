@@ -10,9 +10,8 @@ Le sue responsabilità sono:
 4. Formattare e presentare i risultati all'utente in modo chiaro.
 """
 
-from datetime import datetime
-from fx_lib import run_full_analysis
 import sys
+from fx_lib import run_full_analysis, print_analysis_report, MarketDataError
 
 # =================================================================
 # SEZIONE 0: CONTROLLO DELLE DIPENDENZE
@@ -21,10 +20,12 @@ import sys
 # fondamentali siano installate nell'ambiente Python.
 try:
     import scipy
-except ImportError:
+    import pandas # Aggiunto per un controllo più esplicito, dato l'uso estensivo
+    import yfinance # Aggiunto per un controllo più esplicito
+except ImportError as ie:
     # Se una dipendenza non viene trovata, stampa un messaggio di errore chiaro
     # su stderr e termina l'esecuzione con un codice di errore.
-    print("\n[!] ATTENZIONE: Mancano delle dipendenze necessarie (es. scipy).", file=sys.stderr)
+    print(f"\n[!] ATTENZIONE: Mancano delle dipendenze necessarie ({ie.name}).", file=sys.stderr)
     print("    Per favore, esegui questo comando nel tuo terminale:", file=sys.stderr)
     print("    pip install -r requirements.txt\n", file=sys.stderr)
     sys.exit(1)
@@ -44,7 +45,7 @@ try:
 except ValueError:
     # Se l'input non è valido, usa un valore di default per continuare.
     USD_AMOUNT = 125000.00
-    print(f"Input non valido. Uso il valore di default: {USD_AMOUNT:,.2f} USD")
+    print(f"Input non valido o mancante. Uso il valore di default: {USD_AMOUNT:,.2f} USD")
 
 # Parametri fissi dell'analisi: tasso applicato e simbolo del cambio.
 # In una versione futura, potrebbero diventare anche questi input utente.
@@ -52,41 +53,23 @@ FINECO_RATE_USD_EUR = 0.8462
 SYMBOL = "EURUSD=X"
 
 # =================================================================
-# SEZIONE 2: ESECUZIONE DELL'ANALISI TRAMITE LIBRERIA
+# SEZIONE 2: ESECUZIONE DELL'ANALISI TRAMITE LIBRERIA E REPORT
 # =================================================================
 # Questa è la chiamata al "cervello" del programma.
 # Lo script delega tutta la complessità (download dati, calcoli)
 # alla funzione `run_full_analysis` nella libreria `fx_lib`.
 try:
-    # Il risultato è un dizionario, che disaccoppia i dati dalla loro presentazione.
     results = run_full_analysis(USD_AMOUNT, FINECO_RATE_USD_EUR, symbol=SYMBOL)
+    print_analysis_report(results) # Usa la nuova funzione di stampa
 
-    # =================================================================
-    # SEZIONE 3: OUTPUT E PRESENTAZIONE DEI RISULTATI
-    # =================================================================
-    # Questa sezione si occupa esclusivamente di mostrare i dati all'utente
-    # in un formato leggibile e ben organizzato.
-    print("\n" + "="*60)
-    print(f"REPORT ANALISI AVANZATA - {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-    print("="*60)
-    print(f"Capitale: {USD_AMOUNT:,.2f} USD  |  Ottenuti con Fineco: {results['eur_actual']:,.2f} €")
-    print(f"Tasso Mercato: {results['mkt_today']:.4f}  |  Media Mobile 50gg (Trend): {results['sma50']:.4f}")
-    print("-" * 60)
-    # Spiegazione: un percentile basso è BUONO perché significa che il tasso attuale è più basso (più favorevole) della maggior parte dei tassi dell'anno passato.
-    print(f"Posizionamento Statistico: {results['stat_percentile']:.1f}° percentile (0=Migliore, 100=Peggiore)")
-    print(f"Volatilità a 30gg: {results['volatility']:.4f} (Indice di Rischio/Opportunità)")
-    print("-" * 60)
-    print(f"ANALISI: {results['commento_dinamico']}")
-    print("-" * 60)
-    print("Record Storico (per confronto):")
-    print(f"  - Miglior cambio 12 mesi ({results['best_day'].strftime('%d/%m/%Y')}): {results['best_eur_historical']:,.2f} €")
-    print(f"  - Differenza dal massimo potenziale: -{results['eur_difference_from_max']:,.2f} €")
-    print("="*60 + "\n")
-
+except (ValueError, MarketDataError) as e:
+    # Gestione degli errori specifici sollevati da validate_inputs o da MarketDataError
+    print(f"\n❌ ERRORE nell'analisi: {e}", file=sys.stderr)
+    print("Verifica i tuoi input o la connessione a internet.", file=sys.stderr)
 except Exception as e:
-    # Gestione generica degli errori che potrebbero verificarsi durante l'analisi
-    # (es. problemi di connessione, ticker non valido).
-    print(f"\nERRORE: Impossibile completare l'analisi.", file=sys.stderr)
-    print(f"Dettagli: {e}", file=sys.stderr)
-    print(f"Verifica la tua connessione a internet o che il ticker '{SYMBOL}' sia corretto.\n", file=sys.stderr)
+    # Gestione generica per altri errori imprevisti
+    print(f"\n❌ ERRORE imprevisto: {e}", file=sys.stderr)
+    print("Si è verificato un problema inatteso. Contatta il supporto.", file=sys.stderr)
+
+
 
