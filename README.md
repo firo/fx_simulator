@@ -1,69 +1,71 @@
-# FX Simulator - USD to EUR (Fineco Logic)
+# Simulatore di Cambio FX Avanzato
 
-Simulatore avanzato per analizzare la convenienza del cambio valuta da USD a EUR. Il sistema confronta i tassi in tempo reale di Yahoo Finance con lo spread reale applicato dal servizio Multicurrency di Fineco.
-Questo è un esempio del risultato sulla base di 10k
+Questo è un simulatore a riga di comando (CLI) per analizzare la convenienza di un'operazione di cambio valuta, con un focus sul cambio da USD a EUR.
+
+Lo strumento va oltre un semplice calcolo di conversione, fornendo indicatori statistici avanzati per aiutare l'utente a comprendere il contesto di mercato attuale. Utilizza dati storici da Yahoo Finance per valutare se il tasso di cambio odierno è favorevole rispetto all'andamento dell'ultimo anno.
+
+## ✨ Funzionalità Principali
+
+- **Analisi Statistica del Tasso**: Calcola la posizione del tasso di cambio attuale usando un **percentile statistico** rispetto alla distribuzione dei tassi dell'ultimo anno, offrendo una valutazione molto più accurata di una semplice scala lineare.
+- **Indicatore di Volatilità**: Misura la volatilità del mercato a 30 giorni per fornire un'indicazione del rischio e dell'instabilità attuali.
+- **Commento Dinamico**: Fornisce un'analisi testuale di facile comprensione che combina i dati di percentile e volatilità per dare un consiglio pratico.
+- **Architettura Modulare**: La logica di business è isolata in una libreria riutilizzabile (`fx_lib.py`), separata dall'interfaccia utente (`fx_simulator.py`).
+- **Efficienza**: Implementa un design pattern **Singleton** per la gestione dei dati, assicurando che i dati di mercato vengano scaricati una sola volta per sessione, anche in caso di analisi multiple.
+
+## 🛠️ Installazione e Utilizzo
+
+Per eseguire il simulatore, sono necessari Python 3 e Git.
+
+1.  **Clona il Repository**
+    ```bash
+    git clone <URL_DEL_TUO_REPOSITORY>
+    cd fx_simulator
+    ```
+
+2.  **Crea un Ambiente Virtuale** (Consigliato)
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate  # Su Windows: venv\Scripts\activate
+    ```
+
+3.  **Installa le Dipendenze**
+    Il progetto richiede alcune librerie Python. Installale tramite il file `requirements.txt`.
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4.  **Esegui lo Script**
+    Una volta installate le dipendenze, avvia il simulatore:
+    ```bash
+    python fx_simulator.py
+    ```
+    Lo script ti chiederà di inserire l'importo in USD che desideri convertire.
+
+## 📊 Interpretare l'Output
+
+Dopo l'esecuzione, lo script stamperà un report simile a questo:
 
 ```
---- SIMULATORE CAMBIO EUR/USD (FINECO) ---
-Inserisci l'importo in USD (es. 100 per 100k$): 10
-
+REPORT ANALISI AVANZATA - 05/01/2026 10:30
 ============================================================
-REPORT CAMBIO DINAMICO - 29/12/2025 09:21
-============================================================
-Capitale: 10,000.00 USD  |  Ottenuti: 8,462.00 €
-Tasso Fineco (USD/EUR): 0.8462 (Mercato: 1.1780)
-Posizionamento cambio:  94.5% (0%=Migliore, 100%=Peggiore)
+Capitale: 125,000.00 USD  |  Ottenuti con Fineco: 105,775.00 €
+Tasso Mercato: 1.0810
 ------------------------------------------------------------
-ANALISI: SFAVOREVOLE: L'Euro è molto forte. Se possibile, attendi un ritracciamento.
+Posizionamento Statistico: 15.2° percentile (0=Migliore, 100=Peggiore)
+Volatilità a 30gg: 0.0045 (Indice di Rischio/Opportunità)
 ------------------------------------------------------------
-Record 12 mesi (13/01/2025): 9,783.39 €
-Differenza dal massimo potenziale: -1,321.39 €
+ANALISI: BUONO: Il Dollaro è forte. La conversione è vantaggiosa.
+------------------------------------------------------------
+Record Storico (per confronto):
+  - Miglior cambio 12 mesi (28/09/2025): 110,500.00 €
+  - Differenza dal massimo potenziale: -4,725.00 €
 ============================================================
 ```
-## 🚀 Funzionalità
-- **Cambio Immediato**: Calcolo netto basato sul tasso USD/EUR inserito manualmente (formato Fineco).
-- **Analisi Spread**: Calcolo della commissione implicita (pips) applicata dalla banca rispetto al tasso interbancario.
-- **Record Storico**: Individuazione automatica del miglior tasso degli ultimi 12 mesi con calcolo del guadagno mancato.
-- **Posizionamento Dinamico**: Calcolo del percentile di convenienza (0-100%) per capire se il Dollaro è forte o debole rispetto alla media storica annuale.
-- **Commento**: Suggerimento operativo generato dinamicamente in base alla posizione del prezzo nel range di volatilità.
 
-## 🛠 Setup e Installazione
-
-1. Crea l'ambiente virtuale:
-   `python -m venv venv`
-   `source venv/bin/activate` (Su Windows: `venv\Scripts\activate`)
-
-2. Installa le dipendenze:
-   `pip install yfinance pandas numpy`
-
-3. Esegui lo script:
-   `python fx_simulator.py`
-
-## 🧠 Logica di Calcolo
-
-### 1. Il Tasso Fineco (Inverso)
-Poiché Fineco esprime il cambio USD->EUR come un moltiplicatore (es. 0.8462), lo script lo inverte per confrontarlo con il tasso standard di mercato EUR/USD:
-TassoEquivalent = 1 / TassoFineco
-
-### 2. Analisi del Percentile (Convenienza)
-Il "Posizionamento Cambio" indica dove si trova il prezzo attuale in una scala tra il minimo (0%) e il massimo (100%) dell'ultimo anno:
-- **Percentile < 20%**: Il Dollaro è vicino ai suoi massimi (Momento ottimo per cambiare).
-- **Percentile > 70%**: L'Euro è vicino ai suoi massimi (Momento sfavorevole).
-
-### 3. Spread Bancario
-Viene calcolato il delta tra il mercato "Mid-Market" e il tasso applicato per quantificare il costo del servizio (solitamente ~33 pips per Fineco).
-
-## 📊 Struttura Progetto
-- fx_simulator.py: Script principale Python.
-- requirements.txt: Elenco dipendenze (yfinance, pandas, numpy).
-- README.md: Documentazione tecnica e finanziaria.
+- **Posizionamento Statistico**: **Questo è l'indicatore più importante.** Un valore basso (es. < 20) significa che il tasso di cambio attuale è più favorevole (più basso, nel caso di EUR/USD per chi vende USD) della maggior parte dei giorni dell'ultimo anno. **Più basso è, meglio è.**
+- **Volatilità a 30gg**: Un valore alto (es. > 0.0075) indica che il mercato è "nervoso" e il prezzo sta oscillando molto. Questo può rappresentare sia un'opportunità che un rischio.
+- **ANALISI**: Il commento riassume gli indicatori in un consiglio pratico.
 
 ---
 
-## 🤖 AI Context Prompt (Copia questo per nuove richieste)
-Se desideri evolvere questo script chiedendo aiuto a un'IA generativa, incolla il seguente testo come introduzione:
-
-> "Sto lavorando a un simulatore di cambio FX in Python che analizza la conversione USD/EUR. Lo script scarica dati da Yahoo Finance e simula le condizioni di Fineco Multicurrency (usando tassi inversi e spread di circa 33 pips). La logica principale si basa sul calcolo del percentile di convenienza rispetto al range di volatilità annuale. Ho già un setup funzionante con Pandas e YFinance. Ti fornirò il codice e vorrei che tu mi aiutassi a: [INSERISCI QUI LA TUA RICHIESTA]"
-
----
-*Disclaimer: Questo software è a scopo puramente analitico e non costituisce consulenza finanziaria o sollecitazione al risparmio.*
+*Disclaimer: Questo software è sviluppato a scopo didattico e analitico. Non deve essere considerato come consulenza finanziaria.*

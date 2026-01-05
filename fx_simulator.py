@@ -1,92 +1,93 @@
-import yfinance as yf
-import pandas as pd
-import numpy as np
+# -*- coding: utf-8 -*-
+"""
+Punto di ingresso principale per il Simulatore Avanzato di Cambio.
+
+Questo script funge da interfaccia utente a riga di comando (CLI).
+Le sue responsabilità sono:
+1. Verificare la presenza delle dipendenze necessarie.
+2. Raccogliere l'input dell'utente (importo da convertire).
+3. Invocare la libreria `fx_lib` per eseguire l'analisi complessa.
+4. Formattare e presentare i risultati all'utente in modo chiaro.
+"""
+
 from datetime import datetime
+from fx_lib import run_full_analysis
+import sys
 
 # =================================================================
-# 1. INPUT INTERATTIVO
+# SEZIONE 0: CONTROLLO DELLE DIPENDENZE
 # =================================================================
-print("\n--- SIMULATORE CAMBIO EUR/USD (FINECO) ---")
+# Prima di eseguire qualsiasi logica, si assicura che le librerie
+# fondamentali siano installate nell'ambiente Python.
 try:
+    import scipy
+except ImportError:
+    # Se una dipendenza non viene trovata, stampa un messaggio di errore chiaro
+    # su stderr e termina l'esecuzione con un codice di errore.
+    print("\n[!] ATTENZIONE: Mancano delle dipendenze necessarie (es. scipy).", file=sys.stderr)
+    print("    Per favore, esegui questo comando nel tuo terminale:", file=sys.stderr)
+    print("    pip install -r requirements.txt\n", file=sys.stderr)
+    sys.exit(1)
+
+
+# =================================================================
+# SEZIONE 1: INPUT INTERATTIVO DELL'UTENTE
+# =================================================================
+# Qui vengono definiti e raccolti i parametri per l'analisi.
+print("\n--- SIMULATORE AVANZATO CAMBIO EUR/USD (FINECO) ---")
+try:
+    # Richiede all'utente l'importo e lo converte in un numero.
+    # Gestisce input con la virgola e abbreviazioni (es. 100 per 100,000).
     user_input = input("Inserisci l'importo in USD (es. 100 per 100k$): ")
     val_raw = float(user_input.replace(',', '.'))
     USD_AMOUNT = val_raw * 1000 if val_raw < 1000 else val_raw
 except ValueError:
+    # Se l'input non è valido, usa un valore di default per continuare.
     USD_AMOUNT = 125000.00
+    print(f"Input non valido. Uso il valore di default: {USD_AMOUNT:,.2f} USD")
 
-SYMBOL = "EURUSD=X"
-# Tasso Fineco (USD -> EUR) - Inserisci quello che vedi sul portale
+# Parametri fissi dell'analisi: tasso applicato e simbolo del cambio.
+# In una versione futura, potrebbero diventare anche questi input utente.
 FINECO_RATE_USD_EUR = 0.8462 
+SYMBOL = "EURUSD=X"
 
 # =================================================================
-# 2. DOWNLOAD E PULIZIA DATI
+# SEZIONE 2: ESECUZIONE DELL'ANALISI TRAMITE LIBRERIA
 # =================================================================
-data = yf.download(SYMBOL, period="18mo", interval="1d", progress=False)
-data = data.dropna()
+# Questa è la chiamata al "cervello" del programma.
+# Lo script delega tutta la complessità (download dati, calcoli)
+# alla funzione `run_full_analysis` nella libreria `fx_lib`.
+try:
+    # Il risultato è un dizionario, che disaccoppia i dati dalla loro presentazione.
+    results = run_full_analysis(USD_AMOUNT, FINECO_RATE_USD_EUR, symbol=SYMBOL)
 
-def get_scalar(value):
-    if hasattr(value, 'item'): return float(value.item())
-    if isinstance(value, (pd.Series, np.ndarray)): return float(value.iloc[0])
-    return float(value)
+    # =================================================================
+    # SEZIONE 3: OUTPUT E PRESENTAZIONE DEI RISULTATI
+    # =================================================================
+    # Questa sezione si occupa esclusivamente di mostrare i dati all'utente
+    # in un formato leggibile e ben organizzato.
+    print("\n" + "="*60)
+    print(f"REPORT ANALISI AVANZATA - {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    print("="*60)
+    print(f"Capitale: {USD_AMOUNT:,.2f} USD  |  Ottenuti con Fineco: {results['eur_actual']:,.2f} €")
+    print(f"Tasso Mercato: {results['mkt_today']:.4f}")
+    print("-" * 60)
+    
+    # Spiegazione del percentile per aiutare l'interpretazione dei risultati.
+    print(f"Posizionamento Statistico: {results['stat_percentile']:.1f}° percentile (0=Migliore, 100=Peggiore)")
+    print(f"Volatilità a 30gg: {results['volatility']:.4f} (Indice di Rischio/Opportunità)")
+    print("-" * 60)
+    print(f"ANALISI: {results['commento_dinamico']}")
+    print("-" * 60)
+    print("Record Storico (per confronto):")
+    print(f"  - Miglior cambio 12 mesi ({results['best_day'].strftime('%d/%m/%Y')}): {results['best_eur_historical']:,.2f} €")
+    print(f"  - Differenza dal massimo potenziale: -{results['eur_difference_from_max']:,.2f} €")
+    print("="*60 + "\n")
 
-latest_close = get_scalar(data['Close'].iloc[-1])
-mkt_today = latest_close # Usiamo la chiusura più recente per il benchmark
+except Exception as e:
+    # Gestione generica degli errori che potrebbero verificarsi durante l'analisi
+    # (es. problemi di connessione, ticker non valido).
+    print(f"\nERRORE: Impossibile completare l'analisi.", file=sys.stderr)
+    print(f"Dettagli: {e}", file=sys.stderr)
+    print(f"Verifica la tua connessione a internet o che il ticker '{SYMBOL}' sia corretto.\n", file=sys.stderr)
 
-# =================================================================
-# 3. CALCOLO SPREAD E RECOR STORICO
-# =================================================================
-fineco_equivalent_rate = 1 / FINECO_RATE_USD_EUR
-eur_actual = USD_AMOUNT * FINECO_RATE_USD_EUR
-
-one_year_ago = data.index[-1] - pd.DateOffset(years=1)
-last_12m = data.loc[data.index >= one_year_ago].copy()
-
-best_mkt_rate = get_scalar(last_12m['Low'].min())
-worst_mkt_rate = get_scalar(last_12m['High'].max())
-best_day_raw = last_12m['Low'].idxmin()
-
-# Correzione del warning: uso di .iloc[0]
-if isinstance(best_day_raw, (pd.Index, pd.Series)):
-    best_day = best_day_raw.iloc[0]
-else:
-    best_day = best_day_raw
-
-# Calcolo differenza rispetto al miglior scenario possibile
-spread_points = fineco_equivalent_rate - mkt_today
-best_eur_historical = USD_AMOUNT / (best_mkt_rate + spread_points)
-
-# =================================================================
-# 4. LOGICA DI COMMENTO DINAMICO
-# =================================================================
-# Calcoliamo dove si trova il prezzo attuale in una scala da 0 (minimo) a 100 (massimo)
-# Per chi vende USD, più il tasso è BASSO, più è vantaggioso.
-percentile = ((mkt_today - best_mkt_rate) / (worst_mkt_rate - best_mkt_rate)) * 100
-
-def genera_commento(p):
-    if p <= 15:
-        return "ECCELLENTE: Il Dollaro è vicino ai massimi dell'anno. È un momento d'oro per convertire."
-    elif p <= 40:
-        return "BUONO: Il Dollaro è forte rispetto alla media. La conversione è vantaggiosa."
-    elif p <= 70:
-        return "NEUTRO: Il cambio è a metà strada. Valuta una conversione parziale (DCA)."
-    else:
-        return "SFAVOREVOLE: L'Euro è molto forte. Se possibile, attendi un ritracciamento."
-
-commento_dinamico = genera_commento(percentile)
-
-# =================================================================
-# 5. OUTPUT
-# =================================================================
-print("\n" + "="*60)
-print(f"REPORT CAMBIO DINAMICO - {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-print("="*60)
-print(f"Capitale: {USD_AMOUNT:,.2f} USD  |  Ottenuti: {eur_actual:,.2f} €")
-print(f"Tasso Fineco (USD/EUR): {FINECO_RATE_USD_EUR:.4f} (Mercato: {mkt_today:.4f})")
-print(f"Posizionamento cambio:  {percentile:.1f}% (0%=Migliore, 100%=Peggiore)")
-print("-" * 60)
-print(f"ANALISI: {commento_dinamico}")
-print("-" * 60)
-
-print(f"Record 12 mesi ({best_day.strftime('%d/%m/%Y')}): {best_eur_historical:,.2f} €")
-print(f"Differenza dal massimo potenziale: -{best_eur_historical - eur_actual:,.2f} €")
-print("="*60 + "\n")
