@@ -2,15 +2,19 @@
 
 Questo è un simulatore a riga di comando (CLI) per analizzare la convenienza di un'operazione di cambio valuta, con un focus sul cambio da USD a EUR.
 
-Lo strumento va oltre un semplice calcolo di conversione, fornendo indicatori statistici avanzati per aiutare l'utente a comprendere il contesto di mercato attuale. Utilizza dati storici da Yahoo Finance per valutare se il tasso di cambio odierno è favorevole rispetto all'andamento dell'ultimo anno.
+Lo strumento va oltre un semplice calcolo di conversione, fornendo indicatori statistici avanzati e un'analisi contestualizzata per aiutare l'utente a prendere decisioni informate. Utilizza dati storici da Yahoo Finance per valutare se il tasso di cambio odierno è favorevole rispetto all'andamento dell'ultimo anno.
 
 ## ✨ Funzionalità Principali
 
-- **Analisi Statistica del Tasso**: Calcola la posizione del tasso di cambio attuale usando un **percentile statistico** rispetto alla distribuzione dei tassi dell'ultimo anno, offrendo una valutazione molto più accurata di una semplice scala lineare.
-- **Indicatore di Volatilità**: Misura la volatilità del mercato a 30 giorni per fornire un'indicazione del rischio e dell'instabilità attuali.
-- **Commento Dinamico**: Fornisce un'analisi testuale di facile comprensione che combina i dati di percentile e volatilità per dare un consiglio pratico.
+- **Analisi Multi-fattore**: Il commento dinamico non si basa solo sul prezzo, ma combina tre fattori chiave:
+    1.  **Posizionamento Storico**: Un percentile statistico calcola la convenienza del tasso odierno rispetto a tutti i giorni dell'ultimo anno.
+    2.  **Rischio di Mercato**: La volatilità a 30 giorni (giornaliera e annualizzata) misura il livello di incertezza e rischio.
+    3.  **Trend di Breve Termine**: Il confronto con la media mobile a 50 giorni (SMA50) indica la direzione attuale del mercato.
+- **Metriche Dettagliate**: Calcola e mostra metriche utili come lo spread percentuale pagato all'intermediario, la volatilità annualizzata, e il potenziale guadagno/perdita rispetto ai momenti migliori e peggiori dell'anno.
+- **Gestione Errori Robusta**: Implementa eccezioni personalizzate (`MarketDataError`) e blocchi `try-except` per gestire elegantemente problemi di connessione, dati mancanti o input non validi.
+- **Cache Dati Intelligente**: Utilizza un pattern Singleton con cache temporizzata. I dati di mercato vengono conservati per un'ora, evitando download ripetuti e velocizzando le analisi successive.
+- **Validazione Automatica**: Controlla la validità degli input utente e la qualità dei dati scaricati (es. numero minimo di righe, freschezza dei dati).
 - **Architettura Modulare**: La logica di business è isolata in una libreria riutilizzabile (`fx_lib.py`), separata dall'interfaccia utente (`fx_simulator.py`).
-- **Efficienza**: Implementa un design pattern **Singleton** per la gestione dei dati, assicurando che i dati di mercato vengano scaricati una sola volta per sessione, anche in caso di analisi multiple.
 
 ## 🛠️ Installazione e Utilizzo
 
@@ -29,13 +33,11 @@ Per eseguire il simulatore, sono necessari Python 3 e Git.
     ```
 
 3.  **Installa le Dipendenze**
-    Il progetto richiede alcune librerie Python. Installale tramite il file `requirements.txt`.
     ```bash
     pip install -r requirements.txt
     ```
 
 4.  **Esegui lo Script**
-    Una volta installate le dipendenze, avvia il simulatore:
     ```bash
     python fx_simulator.py
     ```
@@ -43,28 +45,40 @@ Per eseguire il simulatore, sono necessari Python 3 e Git.
 
 ## 📊 Interpretare l'Output
 
-Dopo l'esecuzione, lo script stamperà un report simile a questo:
+Dopo l'esecuzione, lo script stamperà un report dettagliato:
 
 ```
-REPORT ANALISI AVANZATA - 05/01/2026 10:30
-============================================================
-Capitale: 125,000.00 USD  |  Ottenuti con Fineco: 105,775.00 €
-Tasso Mercato: 1.0810
-------------------------------------------------------------
-Posizionamento Statistico: 15.2° percentile (0=Migliore, 100=Peggiore)
-Volatilità a 30gg: 0.0045 (Indice di Rischio/Opportunità)
-------------------------------------------------------------
-ANALISI: BUONO: Il Dollaro è forte. La conversione è vantaggiosa.
-------------------------------------------------------------
-Record Storico (per confronto):
-  - Miglior cambio 12 mesi (28/09/2025): 110,500.00 €
-  - Differenza dal massimo potenziale: -4,725.00 €
-============================================================
+======================================================================
+ANALISI CAMBIO USD -> EUR
+======================================================================
+
+💰 CONVERSIONE:
+   112,000.00 USD → 94,774.40 EUR
+   Tasso Fineco: 1.18371 EUR/USD
+   Spread vs mercato: 1.31%
+
+📊 MERCATO:
+   Tasso attuale: 1.16840 EUR/USD
+   Percentile 12M: 0.4%
+   Volatilità: 0.0025 (3.97% annualizzata)
+   SMA 50 giorni: 1.16370
+
+📈 CONFRONTO STORICO (ultimi 12 mesi):
+   Miglior tasso: 1.07000 il 2025-01-13
+   Peggior tasso: 1.18130 il 2025-12-15
+   Potenziale guadagno vs miglior momento: -13,776.43 EUR (-12.7%)
+
+💡 SCENARIO: ECCELLENTE. Il Dollaro è ai massimi storici rispetto agli ultimi 12 mesi, un'opportunità potenzialmente d'oro. Il mercato è relativamente stabile. Il trend favorisce l'Euro (sopra media del 0.4%).
+
+📅 Ultimo aggiornamento dati: 2026-01-05 (0 giorni fa)
+======================================================================
 ```
 
-- **Posizionamento Statistico**: **Questo è l'indicatore più importante.** Un valore basso (es. < 20) significa che il tasso di cambio attuale è più favorevole (più basso, nel caso di EUR/USD per chi vende USD) della maggior parte dei giorni dell'ultimo anno. **Più basso è, meglio è.**
-- **Volatilità a 30gg**: Un valore alto (es. > 0.0075) indica che il mercato è "nervoso" e il prezzo sta oscillando molto. Questo può rappresentare sia un'opportunità che un rischio.
-- **ANALISI**: Il commento riassume gli indicatori in un consiglio pratico.
+- **Spread vs mercato**: Il costo implicito della tua operazione di cambio. Un valore basso è migliore.
+- **Percentile 12M**: **L'indicatore più importante.** Un valore basso (es. < 15%) significa che il tasso di oggi è tra i più favorevoli di tutto l'anno.
+- **Volatilità annualizzata**: Misura il "nervosismo" del mercato. Valori alti (es. > 10%) indicano maggiore incertezza.
+- **SMA 50 giorni**: La media dei prezzi degli ultimi 50 giorni. Se il tasso attuale è sopra questa media, il trend di breve termine favorisce l'Euro; se è sotto, favorisce il Dollaro.
+- **💡 SCENARIO**: Il riassunto intelligente che combina tutti i fattori in un'analisi di facile comprensione.
 
 ---
 
