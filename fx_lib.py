@@ -99,7 +99,8 @@ def run_full_analysis(usd_amount, fineco_rate_usd_eur, symbol="EURUSD=X"):
     """
     # 1. Recupero dati tramite il Singleton: efficiente e centralizzato.
     data = market_data_provider.get_data(symbol)
-    mkt_today = get_scalar(data['Close'].tail(1))
+    
+    mkt_today = get_scalar(data['Close'].iloc[-1])
 
     # 2. Calcoli di base: conversione e definizione del periodo di analisi (ultimi 12 mesi).
     eur_actual = usd_amount * fineco_rate_usd_eur
@@ -111,12 +112,14 @@ def run_full_analysis(usd_amount, fineco_rate_usd_eur, symbol="EURUSD=X"):
     #    'kind=rank' gestisce i pareggi. Un valore basso (es. 10) significa che
     #    il tasso di oggi è più basso (migliore) del 90% dei tassi dell'ultimo anno.
     stat_percentile = percentileofscore(last_12m['Close'], mkt_today, kind='rank')
+    if isinstance(stat_percentile, np.ndarray):
+        stat_percentile = stat_percentile[0]
 
     # 4. Calcolo della Volatilità Storica (Proposta 3):
     #    Misura la deviazione standard dei rendimenti giornalieri su una finestra mobile (30gg).
     #    Un valore alto indica che il prezzo sta subendo forti oscillazioni (maggior rischio/opportunità).
     daily_returns = data['Close'].pct_change()
-    volatility = get_scalar(daily_returns.rolling(window=30).std().tail(1))
+    volatility = get_scalar(daily_returns.rolling(window=30).std().iloc[-1])
 
     # 5. Generazione del commento dinamico basato sui nuovi indicatori.
     commento_dinamico = _genera_commento(stat_percentile, volatility)
@@ -127,6 +130,8 @@ def run_full_analysis(usd_amount, fineco_rate_usd_eur, symbol="EURUSD=X"):
     spread_points = fineco_equivalent_rate - mkt_today
     best_eur_historical = usd_amount / (best_mkt_rate + spread_points)
     best_day = last_12m['Low'].idxmin()
+    if isinstance(best_day, pd.Series):
+        best_day = best_day.iloc[0]
 
     # 7. Restituzione di un dizionario strutturato con tutti i dati calcolati.
     #    Questo disaccoppia la logica di calcolo dalla logica di presentazione.
