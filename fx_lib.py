@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Libreria per l'analisi avanzata del tasso di cambio (es. EUR/USD).
-
-Questa libreria fornisce funzionalità per scaricare dati di mercato, calcolare
-indicatori statistici come percentile e volatilità, e restituire un'analisi
-completa per supportare decisioni di conversione di valuta.
+Sistema di Raccomandazione per Conversione USD->EUR
+Approccio pragmatico basato su indicatori tecnici multipli
+SENZA modelli predittivi complessi (che non funzionano bene sul Forex)
 """
 
 import yfinance as yf
@@ -14,361 +12,330 @@ from scipy.stats import percentileofscore
 from datetime import datetime, timedelta
 import logging
 
-# Configurazione logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(name)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
-class MarketDataError(Exception):
-    """Eccezione personalizzata per errori nel recupero dati di mercato."""
-    pass
-
-
-class _MarketData:
+class FXRecommendationSystem:
     """
-    Classe interna che implementa il pattern Singleton (Borg/Monostate).
-    Tutte le istanze condivideranno lo stesso stato, inclusa la cache dei dati.
+    Sistema di raccomandazione basato su indicatori tecnici multipli.
+    Non cerca di predire il futuro, ma valuta se il momento attuale
+    è statisticamente favorevole rispetto al passato.
     """
-    _instance = None
-    _data_cache = {}
-    _cache_timestamp = {}  # Timestamp per validare la freschezza dei dati
-
-    def __new__(cls):
-        """Costruttore che assicura la creazione di una sola istanza."""
-        if cls._instance is None:
-            cls._instance = super(_MarketData, cls).__new__(cls)
-        return cls._instance
-
-    def get_data(self, symbol, period="18mo", interval="1d", force_refresh=False):
-        """
-        Recupera i dati di mercato per un dato simbolo. 
+    
+    def __init__(self, symbol="EURUSD=X"):
+        self.symbol = symbol
+        self.data = None
+        self.indicators = {}
         
-        Args:
-            symbol: Simbolo del tasso di cambio (es. "EURUSD=X")
-            period: Periodo storico da recuperare
-            interval: Intervallo temporale
-            force_refresh: Forza il refresh dei dati anche se in cache
-            
-        Returns:
-            DataFrame con i dati di mercato
-            
-        Raises:
-            MarketDataError: Se il download fallisce o i dati sono insufficienti
-        """
-        cache_key = f"{symbol}-{period}-{interval}"
-        
-        # Verifica se i dati sono in cache e ancora freschi (max 1 ora)
-        if not force_refresh and cache_key in self._data_cache:
-            cache_age = datetime.now() - self._cache_timestamp.get(cache_key, datetime.min)
-            if cache_age < timedelta(hours=1):
-                logger.info(f"Utilizzo dati in cache per {symbol}")
-                return self._data_cache[cache_key]
-        
-        # Download dei dati
+    def fetch_data(self, period="2y"):
+        """Scarica dati storici."""
         try:
-            logger.info(f"Download dati per {symbol}...")
-            data = yf.download(symbol, period=period, interval=interval, progress=False)
-            
-            # Validazione dati
-            if data is None or data.empty:
-                raise MarketDataError(f"Nessun dato ricevuto per {symbol}")
-            
-            data = data.dropna()
-            
-            if len(data) < 50:  # Minimo per calcolare SMA50
-                raise MarketDataError(f"Dati insufficienti per {symbol}: solo {len(data)} righe")
-            
-            # Salva in cache
-            self._data_cache[cache_key] = data
-            self._cache_timestamp[cache_key] = datetime.now()
-            
-            logger.info(f"Download completato: {len(data)} righe per {symbol}")
-            return data
-            
+            self.data = yf.download(self.symbol, period=period, interval="1d", progress=False)
+            self.data = self.data.dropna()
+            logger.info(f"Scaricati {len(self.data)} giorni di dati per {self.symbol}")
+            return True
         except Exception as e:
-            logger.error(f"Errore nel download dati per {symbol}: {str(e)}")
-            raise MarketDataError(f"Impossibile scaricare dati per {symbol}: {str(e)}")
-
-
-# Istanza globale e unica del Singleton
-market_data_provider = _MarketData()
-
-
-def get_scalar(value):
-    """
-    Funzione di utilità per estrarre un singolo valore float da tipi di dato
-    comuni in analisi dati (Pandas Series, Numpy arrays). 
+            logger.error(f"Errore download: {e}")
+            return False
     
-    Returns:
-        float: Valore scalare estratto
+    def calculate_technical_indicators(self):
+        """Calcola indicatori tecnici standard."""
+        if self.data is None or self.data.empty:
+            raise ValueError("Dati non disponibili")
         
-    Raises:
-        ValueError: Se il valore non può essere convertito
-    """
-    try:
-        if pd.isna(value):
-            raise ValueError("Valore NaN non valido")
-            
-        if hasattr(value, 'item'):
-            return float(value.item())
-            
-        if isinstance(value, (pd.Series, np.ndarray)):
-            if isinstance(value, pd.Series) and value.empty:
-                raise ValueError("Serie vuota")
-            return float(value.iloc[0] if isinstance(value, pd.Series) else value[0])
-            
-        return float(value)
+        # Fix: assicurati che close sia una Series 1D
+        close = self.data['Close']
+        if isinstance(close, pd.DataFrame):
+            close = close.squeeze()  # Converte DataFrame a Series
         
-    except (ValueError, TypeError) as e:
-        logger.error(f"Errore nella conversione a scalar: {str(e)}")
-        raise ValueError(f"Impossibile convertire valore a scalar: {str(e)}")
-
-def _genera_commento(percentile, volatility, mkt_today, sma50, volatility_threshold=0.0075):
-    """
-    Genera un'analisi dinamica e intelligente basata su percentile, volatilità e trend (SMA50). 
+        # 1. TREND - Medie Mobili
+        self.indicators['sma_20'] = close.rolling(window=20).mean()
+        self.indicators['sma_50'] = close.rolling(window=50).mean()
+        self.indicators['sma_200'] = close.rolling(window=200).mean()
+        
+        # 2. MOMENTUM - RSI (Relative Strength Index)
+        delta = close.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        
+        # Evita divisione per zero
+        rs = gain / loss.replace(0, np.nan)
+        self.indicators['rsi'] = 100 - (100 / (1 + rs))
+        
+        # 3. VOLATILITÀ - Bollinger Bands
+        self.indicators['bb_middle'] = close.rolling(window=20).mean()
+        bb_std = close.rolling(window=20).std()
+        self.indicators['bb_upper'] = self.indicators['bb_middle'] + (2 * bb_std)
+        self.indicators['bb_lower'] = self.indicators['bb_middle'] - (2 * bb_std)
+        
+        # 4. VOLATILITÀ - ATR (Average True Range)
+        high = self.data['High']
+        low = self.data['Low']
+        
+        # Fix: assicurati che siano Series 1D
+        if isinstance(high, pd.DataFrame):
+            high = high.squeeze()
+        if isinstance(low, pd.DataFrame):
+            low = low.squeeze()
+            
+        tr1 = high - low
+        tr2 = abs(high - close.shift())
+        tr3 = abs(low - close.shift())
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        self.indicators['atr'] = tr.rolling(window=14).mean()
+        
+        # 5. VOLUME WEIGHTED
+        volume = self.data['Volume']
+        if isinstance(volume, pd.DataFrame):
+            volume = volume.squeeze()
+            
+        self.indicators['vwap'] = (close * volume).cumsum() / volume.cumsum()
+        
+        return self.indicators
     
-    Args:
-        percentile: Percentile del tasso attuale rispetto agli ultimi 12 mesi
-        volatility: Volatilità a 30 giorni
-        mkt_today: Tasso di cambio corrente
-        sma50: Media mobile a 50 giorni
-        volatility_threshold: Soglia per considerare il mercato volatile
+    def get_current_signal(self):
+        """
+        Genera segnali basati su indicatori tecnici.
+        Ritorna uno score da 0 (pessimo) a 100 (ottimo) per conversione USD->EUR.
+        """
+        if self.data is None or not self.indicators:
+            raise ValueError("Calcola prima gli indicatori")
         
-    Returns:
-        str: Commento descrittivo dello scenario
-    """
-    # 1. Definizione dello scenario di base basato sul percentile
-    # NOTA: Per EUR/USD, percentile basso = USD forte = buono per conversione USD->EUR
-    if percentile <= 15:
-        scenario = "ECCELLENTE"
-        descrizione_base = "Il Dollaro è ai massimi storici rispetto agli ultimi 12 mesi, un'opportunità potenzialmente d'oro."
-    elif percentile <= 40:
-        scenario = "BUONO"
-        descrizione_base = "Il Dollaro è forte rispetto alla media, la conversione è vantaggiosa."
-    elif percentile <= 70:
-        scenario = "NEUTRO"
-        descrizione_base = "Il cambio è in una fase intermedia, senza una chiara convenienza."
-    else:
-        scenario = "SFAVOREVOLE"
-        descrizione_base = "L'Euro è forte, rendendo la conversione tendenzialmente svantaggiosa."
-
-    # 2. Aggiunta del contesto di volatilità
-    if volatility > volatility_threshold * 2:
-        ctx_volatilita = "Il mercato è molto volatile e rischioso in questo momento."
-    elif volatility > volatility_threshold:
-        ctx_volatilita = "Il mercato mostra una certa volatilità."
-    else:
-        ctx_volatilita = "Il mercato è relativamente stabile."
-
-    # 3. Aggiunta del contesto di trend (confronto con SMA50)
-    # Per EUR/USD, un prezzo sotto la media indica trend al rialzo dell'USD
-    diff_pct = ((mkt_today - sma50) / sma50) * 100
-    
-    if abs(diff_pct) < 0.5:
-        ctx_trend = "Il tasso è allineato con la media di medio termine."
-    elif mkt_today < sma50:
-        ctx_trend = f"Il trend favorisce il Dollaro (sotto media del {abs(diff_pct):.1f}%)."
-    else:
-        ctx_trend = f"Il trend favorisce l'Euro (sopra media del {diff_pct:.1f}%)."
-
-    # 4. Composizione del commento finale
-    return f"SCENARIO: {scenario}. {descrizione_base} {ctx_volatilita} {ctx_trend}"
-
-def validate_inputs(usd_amount, fineco_rate_usd_eur):
-    """
-    Valida gli input dell'utente. 
-    
-    Raises:
-        ValueError: Se gli input non sono validi
-    """
-    if usd_amount <= 0:
-        raise ValueError(f"L'importo USD deve essere positivo, ricevuto: {usd_amount}")
-    
-    if fineco_rate_usd_eur <= 0:
-        raise ValueError(f"Il tasso Fineco deve essere positivo, ricevuto: {fineco_rate_usd_eur}")
-    
-    # Sanity check: EUR/USD tipicamente tra 0.8 e 1.5
-    fineco_rate_eurusd = 1 / fineco_rate_usd_eur
-    if fineco_rate_eurusd < 0.5 or fineco_rate_eurusd > 2.0:
-        logger.warning(f"Tasso Fineco sospetto: EUR/USD = {fineco_rate_eurusd:.4f}")
-
-def run_full_analysis(usd_amount, fineco_rate_usd_eur, symbol="EURUSD=X"):
-    """
-    Funzione principale che orchestra l'intera analisi del cambio. 
-    
-    Args:
-        usd_amount: Importo in USD da convertire
-        fineco_rate_usd_eur: Tasso di conversione USD->EUR offerto da Fineco
-        symbol: Simbolo del tasso di cambio (default: "EURUSD=X")
+        current_price = self.data['Close'].iloc[-1]
+        if isinstance(current_price, pd.Series):
+            current_price = current_price.iloc[0]
+        current_price = float(current_price)
         
-    Returns:
-        dict: Dizionario con tutti i risultati dell'analisi
+        signals = {}
         
-    Raises:
-        ValueError: Se gli input non sono validi
-        MarketDataError: Se ci sono problemi con il recupero dei dati
-    """
-    # 0. Validazione input
-    validate_inputs(usd_amount, fineco_rate_usd_eur)
-    
-    try:
-        # 1. Recupero dati tramite il Singleton
-        data = market_data_provider.get_data(symbol)
+        # SEGNALE 1: Posizione rispetto alle medie mobili (40 punti max)
+        # Per EUR/USD, prezzo BASSO = USD forte = buono per USD->EUR
+        sma20 = float(self.indicators['sma_20'].iloc[-1])
+        sma50 = float(self.indicators['sma_50'].iloc[-1])
+        sma200 = float(self.indicators['sma_200'].iloc[-1])
         
-        # Verifica che ci siano dati recenti (ultimi 7 giorni)
-        last_date = data.index[-1]
-        days_old = (datetime.now() - last_date.to_pydatetime()).days
-        if days_old > 7:
-            logger.warning(f"Dati non recentissimi: ultimo aggiornamento {days_old} giorni fa")
+        trend_score = 0
+        if current_price < sma20:
+            trend_score += 10  # Sotto SMA20 = molto buono
+        if current_price < sma50:
+            trend_score += 15  # Sotto SMA50 = buono
+        if current_price < sma200:
+            trend_score += 15  # Sotto SMA200 = trend lungo favorevole
         
-        mkt_today = get_scalar(data['Close'].iloc[-1])
-        
-        # 2. Calcoli di base
-        eur_actual = usd_amount * fineco_rate_usd_eur
-        
-        # Calcolo ultimi 12 mesi con controllo
-        one_year_ago = data.index[-1] - pd.DateOffset(years=1)
-        last_12m = data.loc[data.index >= one_year_ago].copy()
-        
-        if len(last_12m) < 200:  # ~200 giorni lavorativi in un anno
-            logger.warning(f"Dati 12 mesi incompleti: solo {len(last_12m)} righe")
-        
-        # 3. Calcolo degli indicatori chiave
-        # Percentile statistico (rank method per gestire valori duplicati)
-        stat_percentile = percentileofscore(last_12m['Close'], mkt_today, kind='rank')
-        stat_percentile = float(stat_percentile)
-        
-        # Volatilità storica (30 giorni)
-        daily_returns = data['Close'].pct_change()
-        volatility_series = daily_returns.rolling(window=30).std()
-        
-        if volatility_series.iloc[-1] is None or pd.isna(volatility_series.iloc[-1]):
-            raise ValueError("Impossibile calcolare la volatilità")
-        
-        volatility = get_scalar(volatility_series.iloc[-1])
-        
-        # Media Mobile a 50 giorni
-        sma50_series = data['Close'].rolling(window=50).mean()
-        
-        if pd.isna(sma50_series.iloc[-1]):
-            raise ValueError("Impossibile calcolare SMA50")
-        
-        sma50 = get_scalar(sma50_series.iloc[-1])
-        
-        # 4. Generazione del commento intelligente
-        commento_dinamico = _genera_commento(stat_percentile, volatility, mkt_today, sma50)
-        
-        # 5. Calcoli storici per confronto
-        best_mkt_rate = get_scalar(last_12m['Low'].min())
-        worst_mkt_rate = get_scalar(last_12m['High'].max())
-        
-        # Calcolo spread Fineco (differenza tra tasso Fineco e mercato)
-        fineco_equivalent_rate = 1 / fineco_rate_usd_eur
-        spread_points = fineco_equivalent_rate - mkt_today
-        spread_percentage = (spread_points / mkt_today) * 100
-        
-        # Migliore conversione possibile negli ultimi 12 mesi
-        best_eur_historical = usd_amount / (best_mkt_rate + spread_points)
-        worst_eur_historical = usd_amount / (worst_mkt_rate + spread_points)
-        
-        # Giorno del miglior tasso
-        best_day = last_12m['Low'].idxmin()
-        if isinstance(best_day, pd.Series):
-            best_day = best_day.iloc[0]
-        
-        worst_day = last_12m['High'].idxmax()
-        if isinstance(worst_day, pd.Series):
-            worst_day = worst_day.iloc[0]
-        
-        # 6. Restituzione dei risultati
-        return {
-            # Risultati conversione
-            "eur_actual": round(eur_actual, 2),
-            "usd_amount": usd_amount,
-            
-            # Tassi di mercato
-            "mkt_today": round(mkt_today, 5),
-            "fineco_rate_eurusd": round(fineco_equivalent_rate, 5),
-            "spread_points": round(spread_points, 5),
-            "spread_percentage": round(spread_percentage, 2),
-            
-            # Indicatori statistici
-            "stat_percentile": round(stat_percentile, 1),
-            "volatility": round(volatility, 5),
-            "volatility_annualized": round(volatility * np.sqrt(252), 4),  # Volatilità annualizzata
-            "sma50": round(sma50, 5),
-            
-            # Analisi
-            "commento_dinamico": commento_dinamico,
-            
-            # Confronto storico
-            "best_mkt_rate_12m": round(best_mkt_rate, 5),
-            "worst_mkt_rate_12m": round(worst_mkt_rate, 5),
-            "best_eur_historical": round(best_eur_historical, 2),
-            "worst_eur_historical": round(worst_eur_historical, 2),
-            "eur_difference_from_max": round(best_eur_historical - eur_actual, 2),
-            "eur_difference_from_min": round(eur_actual - worst_eur_historical, 2),
-            "potential_gain_pct": round(((best_eur_historical - eur_actual) / eur_actual) * 100, 2),
-            
-            # Date
-            "best_day": best_day.strftime("%Y-%m-%d"),
-            "worst_day": worst_day.strftime("%Y-%m-%d"),
-            "last_update": last_date.strftime("%Y-%m-%d"),
-            "data_age_days": days_old,
+        signals['trend_score'] = trend_score
+        signals['trend_detail'] = {
+            'current': current_price,
+            'sma20': sma20,
+            'sma50': sma50,
+            'sma200': sma200,
         }
         
-    except MarketDataError:
-        raise
-    except Exception as e:
-        logger.error(f"Errore nell'analisi: {str(e)}")
-        raise MarketDataError(f"Errore nell'elaborazione dell'analisi: {str(e)}")
-
-
-def print_analysis_report(results):
-    """
-    Stampa un report formattato dei risultati dell'analisi. 
+        # SEGNALE 2: RSI - Ipervenduto favorisce USD (30 punti max)
+        rsi = float(self.indicators['rsi'].iloc[-1])
+        if rsi < 30:
+            rsi_score = 30  # Molto ipervenduto = ottimo
+        elif rsi < 40:
+            rsi_score = 20  # Ipervenduto = buono
+        elif rsi < 50:
+            rsi_score = 10  # Leggermente debole = ok
+        elif rsi > 70:
+            rsi_score = 0   # Ipercomprato = pessimo
+        else:
+            rsi_score = 5   # Neutro
+        
+        signals['rsi_score'] = rsi_score
+        signals['rsi_value'] = rsi
+        
+        # SEGNALE 3: Bollinger Bands (20 punti max)
+        bb_upper = float(self.indicators['bb_upper'].iloc[-1])
+        bb_lower = float(self.indicators['bb_lower'].iloc[-1])
+        bb_position = (current_price - bb_lower) / (bb_upper - bb_lower)
+        
+        if bb_position < 0.2:
+            bb_score = 20  # Vicino a banda inferiore = ottimo
+        elif bb_position < 0.4:
+            bb_score = 10  # Sotto media = buono
+        elif bb_position > 0.8:
+            bb_score = 0   # Vicino a banda superiore = pessimo
+        else:
+            bb_score = 5   # Neutro
+        
+        signals['bb_score'] = bb_score
+        signals['bb_position'] = bb_position
+        
+        # SEGNALE 4: Percentile storico 12 mesi (10 punti)
+        last_12m_data = self.data['Close'].iloc[-252:]
+        if isinstance(last_12m_data, pd.DataFrame):
+            last_12m_data = last_12m_data.squeeze()
+        
+        # Rimuovi NaN prima del calcolo percentile
+        last_12m_clean = last_12m_data.dropna()
+        percentile = percentileofscore(last_12m_clean, current_price, kind='rank')
+        
+        if percentile <= 20:
+            perc_score = 10
+        elif percentile <= 40:
+            perc_score = 7
+        elif percentile <= 60:
+            perc_score = 3
+        else:
+            perc_score = 0
+        
+        signals['percentile_score'] = perc_score
+        signals['percentile_value'] = float(percentile)
+        
+        # SCORE TOTALE
+        total_score = (
+            signals['trend_score'] + 
+            signals['rsi_score'] + 
+            signals['bb_score'] + 
+            signals['percentile_score']
+        )
+        
+        return total_score, signals
     
-    Args:
-        results: Dizionario dei risultati da run_full_analysis
-    """
+    def get_recommendation(self, usd_amount, fineco_rate_usd_eur):
+        """
+        Genera una raccomandazione completa.
+        """
+        if self.data is None:
+            self.fetch_data()
+        
+        if not self.indicators:
+            self.calculate_technical_indicators()
+        
+        score, signals = self.get_current_signal()
+        
+        # Conversione attuale
+        eur_amount = usd_amount * fineco_rate_usd_eur
+        current_market_rate = self.data['Close'].iloc[-1]
+        if isinstance(current_market_rate, pd.Series):
+            current_market_rate = current_market_rate.iloc[0]
+        current_market_rate = float(current_market_rate)
+        
+        # Calcolo spread Fineco
+        fineco_market_rate = 1 / fineco_rate_usd_eur
+        spread_pct = ((fineco_market_rate - current_market_rate) / current_market_rate) * 100
+        
+        # Range storico 12 mesi
+        last_12m_data = self.data['Close'].iloc[-252:]
+        if isinstance(last_12m_data, pd.DataFrame):
+            last_12m_data = last_12m_data.squeeze()
+        
+        best_rate = float(last_12m_data.min())
+        worst_rate = float(last_12m_data.max())
+        
+        # Posizione attuale nel range
+        range_position = (current_market_rate - best_rate) / (worst_rate - best_rate)
+        
+        # Genera raccomandazione testuale
+        if score >= 70:
+            action = "🟢 OTTIMO MOMENTO"
+            message = "Tutti gli indicatori tecnici sono favorevoli. È un momento statisticamente vantaggioso per convertire."
+        elif score >= 50:
+            action = "🟡 BUON MOMENTO"
+            message = "La maggior parte degli indicatori è favorevole. Momento sopra la media per convertire."
+        elif score >= 30:
+            action = "🟠 MOMENTO NEUTRO"
+            message = "Gli indicatori sono misti. Potresti aspettare un momento migliore, ma non è critico."
+        else:
+            action = "🔴 MOMENTO SFAVOREVOLE"
+            message = "Gli indicatori suggeriscono di aspettare. Il dollaro è relativamente debole."
+        
+        # Aggiungi dettagli specifici
+        details = []
+        if signals['trend_score'] >= 30:
+            details.append("✓ Trend favorevole (prezzo sotto medie mobili)")
+        elif signals['trend_score'] < 10:
+            details.append("✗ Trend sfavorevole (prezzo sopra medie mobili)")
+        
+        if signals['rsi_value'] < 40:
+            details.append("✓ RSI indica ipervenduto (USD forte)")
+        elif signals['rsi_value'] > 60:
+            details.append("✗ RSI indica ipercomprato (USD debole)")
+        
+        if signals['bb_position'] < 0.3:
+            details.append("✓ Prezzo vicino a banda di Bollinger inferiore")
+        elif signals['bb_position'] > 0.7:
+            details.append("✗ Prezzo vicino a banda di Bollinger superiore")
+        
+        if signals['percentile_value'] < 30:
+            details.append(f"✓ Nel {signals['percentile_value']:.1f}° percentile degli ultimi 12 mesi")
+        elif signals['percentile_value'] > 70:
+            details.append(f"✗ Nel {signals['percentile_value']:.1f}° percentile degli ultimi 12 mesi")
+        
+        return {
+            'score': score,
+            'action': action,
+            'message': message,
+            'details': details,
+            'conversion': {
+                'usd_amount': usd_amount,
+                'eur_amount': round(eur_amount, 2),
+                'fineco_rate': fineco_rate_usd_eur,
+            },
+            'market': {
+                'current_rate': round(current_market_rate, 5),
+                'spread_pct': round(spread_pct, 2),
+                'best_12m': round(best_rate, 5),
+                'worst_12m': round(worst_rate, 5),
+                'range_position_pct': round(range_position * 100, 1),
+            },
+            'signals': signals,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+
+
+def print_recommendation_report(rec):
+    """Stampa un report leggibile."""
     print("\n" + "="*70)
-    print("ANALISI CAMBIO USD -> EUR")
+    print("RACCOMANDAZIONE CONVERSIONE USD → EUR")
     print("="*70)
     
+    print(f"\n{rec['action']} (Score: {rec['score']}/100)")
+    print(f"{rec['message']}")
+    
     print(f"\n💰 CONVERSIONE:")
-    print(f"   {results['usd_amount']:,.2f} USD → {results['eur_actual']:,.2f} EUR")
-    print(f"   Tasso Fineco: {results['fineco_rate_eurusd']:.5f} EUR/USD")
-    print(f"   Spread vs mercato: {results['spread_percentage']:.2f}%")
+    print(f"   {rec['conversion']['usd_amount']:,.2f} USD → {rec['conversion']['eur_amount']:,.2f} EUR")
+    print(f"   Tasso Fineco: 1 USD = {rec['conversion']['fineco_rate']:.4f} EUR")
     
     print(f"\n📊 MERCATO:")
-    print(f"   Tasso attuale: {results['mkt_today']:.5f} EUR/USD")
-    print(f"   Percentile 12M: {results['stat_percentile']:.1f}%")
-    print(f"   Volatilità: {results['volatility']:.4f} ({results['volatility_annualized']:.2%} annualizzata)")
-    print(f"   SMA 50 giorni: {results['sma50']:.5f}")
+    print(f"   Tasso corrente: {rec['market']['current_rate']:.5f} EUR/USD")
+    print(f"   Spread Fineco: {rec['market']['spread_pct']:.2f}%")
+    print(f"   Range 12 mesi: {rec['market']['best_12m']:.5f} - {rec['market']['worst_12m']:.5f}")
+    print(f"   Posizione nel range: {rec['market']['range_position_pct']:.1f}%")
     
-    print(f"\n📈 CONFRONTO STORICO (ultimi 12 mesi):")
-    print(f"   Miglior tasso: {results['best_mkt_rate_12m']:.5f} il {results['best_day']}")
-    print(f"   Peggior tasso: {results['worst_mkt_rate_12m']:.5f} il {results['worst_day']}")
-    print(f"   Potenziale guadagno vs miglior momento: {results['eur_difference_from_max']:,.2f} EUR ({results['potential_gain_pct']:.1f}%)")
+    print(f"\n📈 ANALISI TECNICA:")
+    for detail in rec['details']:
+        print(f"   {detail}")
     
-    print(f"\n💡 {results['commento_dinamico']}")
+    print(f"\n🔍 INDICATORI DETTAGLIATI:")
+    print(f"   • Trend (medie mobili): {rec['signals']['trend_score']}/40 punti")
+    print(f"   • RSI: {rec['signals']['rsi_value']:.1f} → {rec['signals']['rsi_score']}/30 punti")
+    print(f"   • Bollinger: posizione {rec['signals']['bb_position']:.2f} → {rec['signals']['bb_score']}/20 punti")
+    print(f"   • Percentile 12M: {rec['signals']['percentile_value']:.1f}% → {rec['signals']['percentile_score']}/10 punti")
     
-    print(f"\n📅 Ultimo aggiornamento dati: {results['last_update']} ({results['data_age_days']} giorni fa)")
+    print(f"\n⏰ Analisi aggiornata al: {rec['timestamp']}")
     print("="*70 + "\n")
 
 
-# Esempio di utilizzo
+# ESEMPIO DI UTILIZZO
 if __name__ == "__main__":
+    # Inizializza il sistema
+    fx_system = FXRecommendationSystem()
+    
+    # Parametri
+    USD_AMOUNT = 10000
+    FINECO_RATE = 0.955  # Esempio: 1 USD = 0.955 EUR
+    
     try:
-        # Parametri di esempio
-        USD_AMOUNT = 10000
-        FINECO_RATE = 0.955  # Esempio: 1 USD = 0.955 EUR
+        # Genera raccomandazione
+        recommendation = fx_system.get_recommendation(USD_AMOUNT, FINECO_RATE)
         
-        results = run_full_analysis(USD_AMOUNT, FINECO_RATE)
-        print_analysis_report(results)
+        # Stampa report
+        print_recommendation_report(recommendation)
         
-    except (ValueError, MarketDataError) as e:
-        print(f"❌ Errore: {str(e)}")
     except Exception as e:
-        print(f"❌ Errore imprevisto: {str(e)}")
-        logger.exception("Traceback completo:")
+        logger.error(f"Errore: {e}")
+        print(f"❌ Errore: {e}")
