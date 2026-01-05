@@ -14,6 +14,7 @@ Il sistema integra diversi indicatori tecnici per generare un **punteggio comple
 -   **Raccomandazione Testuale Dettagliata**: Genera una raccomandazione chiara ("OTTIMO MOMENTO", "BUON MOMENTO", ecc.) con un messaggio esplicativo e dettagli specifici basati sui contributi di ciascun indicatore.
 -   **Gestione Errori Robusta**: Include eccezioni personalizzate (`MarketDataError`) e logging per una maggiore stabilità e trasparenza in caso di problemi (connessione, dati).
 -   **Cache Dati Intelligente**: Scarica e mantiene in cache i dati di mercato per un'ora, riducendo i tempi di attesa per analisi consecutive.
+-   **Robustezza e Coerenza dei Dati**: Implementa una gestione sistematica dei tipi di dato per garantire la stabilità dei calcoli su diverse versioni di librerie e ambienti, risolvendo problemi legati all'interpretazione ambigua di Series/ndarray.
 
 ## 🛠️ Installazione e Utilizzo
 
@@ -37,10 +38,22 @@ Per eseguire il sistema di raccomandazione, sono necessari Python 3 e Git.
     ```
 
 4.  **Esegui lo Script**
-    ```bash
-    python fx_simulator.py
-    ```
-    Lo script ti chiederà l'importo in USD e il tasso di cambio Fineco (USD -> EUR).
+    Lo script può essere eseguito in modalità interattiva o fornendo gli argomenti direttamente da riga di comando.
+
+    -   **Modalità interattiva completa**: Lo script chiederà l'importo e il tasso Fineco.
+        ```bash
+        python fx_simulator.py
+        ```
+    -   **Importo USD da riga di comando, tasso interattivo**: Fornisci solo l'importo.
+        ```bash
+        python fx_simulator.py 111
+        ```
+        (Nota: `111` verrà interpretato come `111,000.00 USD` se minore di 1000)
+    -   **Importo e Tasso da riga di comando**: Esecuzione non interattiva.
+        ```bash
+        python fx_simulator.py 111 0.8462
+        ```
+        (Nota: `0.8462` è il tasso Fineco di default se non specificato nell'input interattivo, altrimenti verrà chiesto interattivamente se non fornito sulla riga di comando e non c'è un valore di default)
 
 ## 📊 Interpretare il Report di Raccomandazione
 
