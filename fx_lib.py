@@ -61,70 +61,72 @@ def get_scalar(value):
         return float(value.iloc[0]) if not value.empty else np.nan
     return float(value)
 
-def _genera_commento(percentile, volatility, volatility_threshold=0.0075):
+def _genera_commento(percentile, volatility, mkt_today, sma50, volatility_threshold=0.0075):
     """
-    Genera un commento qualitativo basato sulla posizione percentile del tasso di cambio
-    e sul livello di volatilità del mercato.
+    Genera un'analisi dinamica e intelligente basata su percentile, volatilità e trend (SMA50).
     """
-    base_comment = ""
-    # Per EUR/USD, un tasso più basso è favorevole per chi converte USD in EUR.
-    # Quindi, un percentile basso (tasso vicino ai minimi) è un segnale positivo.
+    # 1. Definizione dello scenario di base basato sul percentile
     if percentile <= 15:
-        base_comment = "ECCELLENTE: Il Dollaro è ai massimi storici. Momento d'oro per convertire."
+        scenario = "ECCELLENTE"
+        descrizione_base = "Il Dollaro è ai massimi storici, un'opportunità potenzialmente d'oro."
     elif percentile <= 40:
-        base_comment = "BUONO: Il Dollaro è forte. La conversione è vantaggiosa."
+        scenario = "BUONO"
+        descrizione_base = "Il Dollaro è forte rispetto alla media, la conversione è vantaggiosa."
     elif percentile <= 70:
-        base_comment = "NEUTRO: Il cambio è in una fase intermedia. Considera una conversione parziale."
+        scenario = "NEUTRO"
+        descrizione_base = "Il cambio è in una fase intermedia, senza una chiara convenienza."
     else:
-        base_comment = "SFAVOREVOLE: L'Euro è molto forte. Se possibile, attendi un ritracciamento."
+        scenario = "SFAVOREVOLE"
+        descrizione_base = "L'Euro è forte, rendendo la conversione tendenzialmente svantaggiosa."
 
-    volatility_comment = ""
-    # Se la volatilità supera una soglia, aggiunge un avvertimento.
+    # 2. Aggiunta del contesto di volatilità
+    ctx_volatilita = "Il mercato è stabile."
     if volatility > volatility_threshold:
-        volatility_comment = " Attenzione: la volatilità del mercato è alta."
+        ctx_volatilita = "Il mercato è nervoso e imprevedibile."
 
-    return base_comment + volatility_comment
+    # 3. Aggiunta del contesto di trend (confronto con SMA50)
+    # Per EUR/USD, un prezzo sotto la media è buono per chi compra EUR.
+    trend_favorevole_usd = mkt_today < sma50
+    if trend_favorevole_usd:
+        ctx_trend = "Il trend di breve termine sembra favorire un ulteriore rafforzamento del Dollaro."
+    else:
+        ctx_trend = "Il trend di breve termine sta spingendo a favore dell'Euro."
+
+    # 4. Composizione del commento finale
+    commento_finale = f"SCENARIO: {scenario}. {descrizione_base} {ctx_volatilita} {ctx_trend}"
+    return commento_finale
 
 def run_full_analysis(usd_amount, fineco_rate_usd_eur, symbol="EURUSD=X"):
     """
     Funzione principale che orchestra l'intera analisi del cambio.
-
-    Args:
-        usd_amount (float): L'importo in USD da convertire.
-        fineco_rate_usd_eur (float): Il tasso di cambio applicato (da USD a EUR).
-        symbol (str): Il ticker del cambio da analizzare (default: "EURUSD=X").
-
-    Returns:
-        dict: Un dizionario contenente tutti i risultati dell'analisi.
     """
-    # 1. Recupero dati tramite il Singleton: efficiente e centralizzato.
+    # 1. Recupero dati tramite il Singleton
     data = market_data_provider.get_data(symbol)
     
     mkt_today = get_scalar(data['Close'].iloc[-1])
 
-    # 2. Calcoli di base: conversione e definizione del periodo di analisi (ultimi 12 mesi).
+    # 2. Calcoli di base
     eur_actual = usd_amount * fineco_rate_usd_eur
     one_year_ago = data.index[-1] - pd.DateOffset(years=1)
     last_12m = data.loc[data.index >= one_year_ago].copy()
 
-    # 3. Calcolo del Percentile Statistico (Proposta 2):
-    #    Misura la posizione del tasso odierno rispetto a tutti i tassi dell'ultimo anno.
-    #    'kind=rank' gestisce i pareggi. Un valore basso (es. 10) significa che
-    #    il tasso di oggi è più basso (migliore) del 90% dei tassi dell'ultimo anno.
+    # 3. Calcolo degli indicatori chiave
+    # Percentile statistico
     stat_percentile = percentileofscore(last_12m['Close'], mkt_today, kind='rank')
     if isinstance(stat_percentile, np.ndarray):
         stat_percentile = stat_percentile[0]
 
-    # 4. Calcolo della Volatilità Storica (Proposta 3):
-    #    Misura la deviazione standard dei rendimenti giornalieri su una finestra mobile (30gg).
-    #    Un valore alto indica che il prezzo sta subendo forti oscillazioni (maggior rischio/opportunità).
+    # Volatilità storica
     daily_returns = data['Close'].pct_change()
     volatility = get_scalar(daily_returns.rolling(window=30).std().iloc[-1])
 
-    # 5. Generazione del commento dinamico basato sui nuovi indicatori.
-    commento_dinamico = _genera_commento(stat_percentile, volatility)
+    # Media Mobile a 50 giorni (Indicatore di Trend)
+    sma50 = get_scalar(data['Close'].rolling(window=50).mean().iloc[-1])
 
-    # 6. Calcoli storici per fornire un contesto di confronto.
+    # 4. Generazione del commento intelligente
+    commento_dinamico = _genera_commento(stat_percentile, volatility, mkt_today, sma50)
+
+    # 5. Calcoli storici per confronto
     best_mkt_rate = get_scalar(last_12m['Low'].min())
     fineco_equivalent_rate = 1 / fineco_rate_usd_eur
     spread_points = fineco_equivalent_rate - mkt_today
@@ -133,15 +135,15 @@ def run_full_analysis(usd_amount, fineco_rate_usd_eur, symbol="EURUSD=X"):
     if isinstance(best_day, pd.Series):
         best_day = best_day.iloc[0]
 
-    # 7. Restituzione di un dizionario strutturato con tutti i dati calcolati.
-    #    Questo disaccoppia la logica di calcolo dalla logica di presentazione.
+    # 6. Restituzione dei risultati
     return {
-        "eur_actual": eur_actual,                 # Importo in EUR ottenuto con il tasso applicato.
-        "mkt_today": mkt_today,                   # Tasso di mercato odierno.
-        "stat_percentile": stat_percentile,       # Percentile statistico (0-100, basso è meglio).
-        "volatility": volatility,                 # Volatilità a 30 giorni.
-        "commento_dinamico": commento_dinamico,   # Analisi qualitativa testuale.
-        "best_eur_historical": best_eur_historical, # Miglior importo ottenibile nell'anno.
-        "eur_difference_from_max": best_eur_historical - eur_actual, # Delta dal massimo potenziale.
-        "best_day": best_day,                     # Giorno in cui si è verificato il tasso migliore.
+        "eur_actual": eur_actual,
+        "mkt_today": mkt_today,
+        "stat_percentile": stat_percentile,
+        "volatility": volatility,
+        "sma50": sma50,
+        "commento_dinamico": commento_dinamico,
+        "best_eur_historical": best_eur_historical,
+        "eur_difference_from_max": best_eur_historical - eur_actual,
+        "best_day": best_day,
     }

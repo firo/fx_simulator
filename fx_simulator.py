@@ -70,10 +70,9 @@ try:
     print(f"REPORT ANALISI AVANZATA - {datetime.now().strftime('%d/%m/%Y %H:%M')}")
     print("="*60)
     print(f"Capitale: {USD_AMOUNT:,.2f} USD  |  Ottenuti con Fineco: {results['eur_actual']:,.2f} €")
-    print(f"Tasso Mercato: {results['mkt_today']:.4f}")
+    print(f"Tasso Mercato: {results['mkt_today']:.4f}  |  Media Mobile 50gg (Trend): {results['sma50']:.4f}")
     print("-" * 60)
-    
-    # Spiegazione del percentile per aiutare l'interpretazione dei risultati.
+    # Spiegazione: un percentile basso è BUONO perché significa che il tasso attuale è più basso (più favorevole) della maggior parte dei tassi dell'anno passato.
     print(f"Posizionamento Statistico: {results['stat_percentile']:.1f}° percentile (0=Migliore, 100=Peggiore)")
     print(f"Volatilità a 30gg: {results['volatility']:.4f} (Indice di Rischio/Opportunità)")
     print("-" * 60)
